@@ -355,7 +355,7 @@ impl ObscuraJsRuntime {
 
         let module_id = self
             .runtime
-            .load_side_es_module_from_code(&specifier, deno_core::ModuleCodeString::from_static(""))
+            .load_side_es_module(&specifier)
             .await
             .map_err(|e| format!("Module load error: {}", e))?;
 

@@ -64,6 +64,13 @@ pub enum ResourceType {
 pub type RequestCallback = Arc<dyn Fn(&RequestInfo) + Send + Sync>;
 pub type ResponseCallback = Arc<dyn Fn(&RequestInfo, &Response) + Send + Sync>;
 
+fn private_ips_allowed() -> bool {
+    matches!(
+        std::env::var("OBSCURA_ALLOW_PRIVATE_IPS").as_deref(),
+        Ok("1") | Ok("true")
+    )
+}
+
 fn validate_url(url: &Url) -> Result<(), ObscuraNetError> {
     let scheme = url.scheme();
     if scheme != "http" && scheme != "https" {
@@ -73,14 +80,17 @@ fn validate_url(url: &Url) -> Result<(), ObscuraNetError> {
         )));
     }
 
+    let allow_private = private_ips_allowed();
+
     if let Some(host) = url.host() {
         match host {
             url::Host::Ipv4(ip) => {
-                if ip.is_loopback()
-                    || ip.is_private()
-                    || ip.is_link_local()
-                    || ip.is_broadcast()
-                    || ip.is_documentation()
+                if !allow_private
+                    && (ip.is_loopback()
+                        || ip.is_private()
+                        || ip.is_link_local()
+                        || ip.is_broadcast()
+                        || ip.is_documentation())
                 {
                     return Err(ObscuraNetError::Network(format!(
                         "Access to private/internal IP address {} is not allowed",
@@ -89,7 +99,7 @@ fn validate_url(url: &Url) -> Result<(), ObscuraNetError> {
                 }
             }
             url::Host::Ipv6(ip) => {
-                if ip.is_loopback() || ip.is_unicast_link_local() {
+                if !allow_private && (ip.is_loopback() || ip.is_unicast_link_local()) {
                     return Err(ObscuraNetError::Network(format!(
                         "Access to private/internal IPv6 address {} is not allowed",
                         ip
@@ -98,10 +108,11 @@ fn validate_url(url: &Url) -> Result<(), ObscuraNetError> {
             }
             url::Host::Domain(domain) => {
                 let lower_domain = domain.to_lowercase();
-                if lower_domain == "localhost"
-                    || lower_domain.ends_with(".localhost")
-                    || lower_domain == "127.0.0.1"
-                    || lower_domain == "::1"
+                if !allow_private
+                    && (lower_domain == "localhost"
+                        || lower_domain.ends_with(".localhost")
+                        || lower_domain == "127.0.0.1"
+                        || lower_domain == "::1")
                 {
                     return Err(ObscuraNetError::Network(format!(
                         "Access to localhost domain '{}' is not allowed",
