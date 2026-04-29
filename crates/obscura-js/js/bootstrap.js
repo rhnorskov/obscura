@@ -1658,6 +1658,19 @@ Object.defineProperty(Document.prototype, 'adoptedStyleSheets', {
   set(sheets) { this._adoptedStyleSheets = sheets; },
 });
 
+if (!globalThis.__obscura_currentScriptStack) {
+  globalThis.__obscura_currentScriptStack = [];
+}
+Object.defineProperty(Document.prototype, 'currentScript', {
+  configurable: true,
+  get() {
+    const s = globalThis.__obscura_currentScriptStack;
+    if (!s || s.length === 0) return null;
+    const top = s[s.length - 1];
+    return top === undefined ? null : top;
+  },
+});
+
 globalThis.__mutationObservers = [];
 globalThis.MutationObserver = class MutationObserver {
   constructor(callback) {

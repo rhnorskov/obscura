@@ -119,6 +119,7 @@ impl Page {
                  _iframeRegistry.length = 0; globalThis.length = 0; \
                  globalThis._formValues = {}; globalThis._formChecked = {}; \
                  globalThis._eventRegistry = {}; \
+                 globalThis.__obscura_currentScriptStack = []; \
                  globalThis.document = new Document(+_dom('document_node_id'));");
 
             return;
@@ -163,6 +164,7 @@ impl Page {
             is_defer: bool,
             is_async: bool,
             is_module: bool,
+            node_id: u32,
         }
 
         let all_scripts = match &self.js {
@@ -200,6 +202,7 @@ impl Page {
                                     is_defer,
                                     is_async,
                                     is_module,
+                                    node_id: sid.raw(),
                                 });
                             }
                         }
@@ -293,14 +296,20 @@ impl Page {
                     tracing::info!("Executing script ({} bytes): {}", code.len(), url);
                     self.record_network_event(&url, "GET", "Script", resp.status, &resp.headers, resp.body.len());
                     if let Some(js) = &mut self.js {
-                        if let Err(e) = js.execute_script_guarded(&url, &code) {
+                        if let Err(e) =
+                            js.execute_classic_script_with_node(&url, &code, script.node_id)
+                        {
                             tracing::warn!("Script error ({}): {}", url, e);
                         }
                     }
                 }
             } else if !script.inline.is_empty() {
                 if let Some(js) = &mut self.js {
-                    if let Err(e) = js.execute_script_guarded("<inline>", &script.inline) {
+                    if let Err(e) = js.execute_classic_script_with_node(
+                        "<inline>",
+                        &script.inline,
+                        script.node_id,
+                    ) {
                         tracing::warn!("Inline script error: {}", e);
                     }
                 }

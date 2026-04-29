@@ -441,6 +441,38 @@ impl ObscuraJsRuntime {
         }
     }
 
+    pub fn execute_classic_script_with_node(
+        &mut self,
+        name: &str,
+        source: &str,
+        node_id: u32,
+    ) -> Result<(), String> {
+        let push = format!(
+            "(function(){{ var __s = globalThis.__obscura_currentScriptStack; \
+              if (!__s) {{ globalThis.__obscura_currentScriptStack = __s = []; }} \
+              __s.push((typeof _wrap === 'function' ? _wrap({}) : null) || null); }})();",
+            node_id
+        );
+        let _ = self
+            .runtime
+            .execute_script("<currentScript:push>", push);
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.execute_script_guarded(name, source)
+        }));
+
+        let _ = self.runtime.execute_script(
+            "<currentScript:pop>",
+            "globalThis.__obscura_currentScriptStack && globalThis.__obscura_currentScriptStack.pop();"
+                .to_string(),
+        );
+
+        match result {
+            Ok(r) => r,
+            Err(p) => std::panic::resume_unwind(p),
+        }
+    }
+
     pub fn execute_script_with_timeout(
         &mut self,
         source: &str,
